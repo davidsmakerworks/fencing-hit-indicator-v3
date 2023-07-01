@@ -6,10 +6,10 @@
  * github.com/davidsmakerworks
  * 
  * This is a simple fencing hit indicator that implements the hit time and
- * lockout time as specified by current foil fencing rules. Score display is als
+ * lockout time as specified by current foil fencing rules. Score display is also
  * implemented.
  * 
- * Designed for PIC 16F18855
+ * Designed for PIC 16F18855 and MAX6977 LED drivers
  * 
  * INPUTS:
  * RA0 - Red fencer B-line
@@ -140,10 +140,22 @@
 #define DISCONNECT_DETECT_COUNT 3
 
 // Amount of time in ms that a score increment signal must be active to increment the score
-#define SCORE_INCREMENT_TIME 750
+#define SCORE_INCREMENT_TIME 100
 
 // Time to sound buzzer when score is incremented
 #define SCORE_INC_BUZZER_TIME 100
+
+// Minimum time in msec between score increments
+#define SCORE_COOLDOWN_TIME 2000
+
+// Score limit when score will reset
+#define SCORE_LIMIT 5
+
+// Delay before resetting score in msec after score limit is reached
+#define SCORE_RESET_TIME 1000
+
+// Length of score reset signal beeps in msec
+#define SCORE_RESET_SIGNAL_TIME 100
 
 // The time stamps (in ms) at which the fencer's hit was first detected
 // This condition must persist for MIN_HIT_TIME ms to be considered a valid hit
@@ -174,8 +186,8 @@ uint16_t ready_timestamp;
 uint8_t consecutive_activations;
 
 // TRUE if buzzer is armed (i.e., both foils are connected and hits are
-// valid). FALSE if the buzzer has been counding continuously due to one
-// or both foils beind disconnected.
+// valid). FALSE if the buzzer has been sounding continuously due to one
+// or both foils being disconnected.
 uint8_t buzzer_armed;
 
 // State variable for finite state machine in main loop
@@ -186,13 +198,18 @@ uint8_t state;
 uint8_t red_pending;
 uint8_t green_pending;
 
-// Indicated that a hit has been registered by one fencer, and now the other fencer
+// Indicates that a hit has been registered by one fencer, and now the other fencer
 // has LOCKOUT_TIME ms to also register a hit
 uint8_t lockout_pending;
 
+// Indicates that a score increment is pending - used to avoid false detections
 uint8_t red_inc_pending;
 uint8_t green_inc_pending;
 
+// Timestamp when last score increment occurred
+uint16_t score_cooldown_timestamp;
+
+// 7-segment digit bits in reverse order (i.e., .GFEDCBA) for MAX6977 LED driver
 const uint8_t digits[10] = {
     0b00111111,
     0b00000110,
@@ -324,6 +341,25 @@ void update_score(uint8_t red_score, uint8_t green_score) {
     GREEN_SCORE_LATCH = 0;
 }
 
+void signal_increment(void) {
+    BUZZER = 1;
+    delay_ms(SCORE_INC_BUZZER_TIME);
+    BUZZER = 0;
+}
+
+void signal_reset(void) {
+    uint8_t i;
+    
+    delay_ms(SCORE_RESET_TIME);
+                    
+    for (i = 0; i < 3; i++) {
+        BUZZER = 1;
+        delay_ms(SCORE_RESET_SIGNAL_TIME);
+        BUZZER = 0;
+        delay_ms(SCORE_RESET_SIGNAL_TIME);
+    }
+}
+
 void main(void) {
     // TODO: Maybe make these global variables since the program is so simple
     uint8_t red_score = 0;
@@ -357,6 +393,8 @@ void main(void) {
                 
                 red_inc_start_timestamp = 0;
                 green_inc_start_timestamp = 0;
+                
+                score_cooldown_timestamp = 0;
 
                 red_pending = FALSE;
                 green_pending = FALSE;
@@ -377,9 +415,9 @@ void main(void) {
                     }
                 }
                 
-                if (RED_SCORE_INCREMENT) {
+                if (RED_SCORE_INCREMENT && (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME)) {
                     if (red_inc_pending) {
-                        if ((ticks - red_inc_start_timestamp > SCORE_INCREMENT_TIME)) {
+                        if (ticks - red_inc_start_timestamp > SCORE_INCREMENT_TIME) {
                             if (GREEN_SCORE_INCREMENT) {
                                 red_score = 0;
                                 green_score = 0;
@@ -389,11 +427,11 @@ void main(void) {
                             
                             update_score(red_score, green_score);
                             
-                            BUZZER = 1;
-                            delay_ms(SCORE_INC_BUZZER_TIME);
-                            BUZZER = 0;
+                            signal_increment();
                             
                             red_inc_pending = FALSE;
+                            
+                            score_cooldown_timestamp = ticks;
                         }
                     } else {
                         red_inc_start_timestamp = ticks;
@@ -403,7 +441,7 @@ void main(void) {
                     red_inc_pending = FALSE;
                 }
                 
-                if (GREEN_SCORE_INCREMENT) {
+                if (GREEN_SCORE_INCREMENT && (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME)) {
                     if (green_inc_pending) {
                         if ((ticks - green_inc_start_timestamp > SCORE_INCREMENT_TIME)) {
                             if (RED_SCORE_INCREMENT) {
@@ -415,11 +453,11 @@ void main(void) {
                             
                             update_score(red_score, green_score);
                             
-                            BUZZER = 1;
-                            delay_ms(SCORE_INC_BUZZER_TIME);
-                            BUZZER = 0;
+                            signal_increment();
                             
                             green_inc_pending = FALSE;
+                            
+                            score_cooldown_timestamp = ticks;
                         }
                     } else {
                         green_inc_start_timestamp = ticks;
@@ -427,6 +465,15 @@ void main(void) {
                     }
                 } else {
                     green_inc_pending = FALSE;
+                }
+                
+                if ((red_score >= SCORE_LIMIT) || (green_score >= SCORE_LIMIT)) {
+                    signal_reset();
+                    
+                    red_score = 0;
+                    green_score = 0;
+                    
+                    update_score(red_score, green_score);
                 }
                 
                 if (RED_FOIL) {
