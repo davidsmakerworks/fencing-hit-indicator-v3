@@ -140,7 +140,7 @@
 #define DISCONNECT_DETECT_COUNT 3
 
 // Amount of time in ms that a score increment signal must be active to increment the score
-#define SCORE_INCREMENT_TIME 100
+#define SCORE_INCREMENT_TIME 30
 
 // Time to sound buzzer when score is incremented
 #define SCORE_INC_BUZZER_TIME 100
@@ -208,6 +208,9 @@ uint8_t green_inc_pending;
 
 // Timestamp when last score increment occurred
 uint16_t score_cooldown_timestamp;
+
+// Flag to indicate of score cooldown is active
+uint8_t score_cooldown_active;
 
 // 7-segment digit bits in reverse order (i.e., .GFEDCBA) for MAX6977 LED driver
 const uint8_t digits[10] = {
@@ -368,7 +371,6 @@ void signal_reset(void) {
 }
 
 void main(void) {
-    // TODO: Maybe make these global variables since the program is so simple
     uint8_t red_score = 0;
     uint8_t green_score = 0;
     
@@ -410,6 +412,8 @@ void main(void) {
                 
                 red_inc_pending = FALSE;
                 green_inc_pending = FALSE;
+                
+                score_cooldown_active = FALSE;
 
                 // Record timestamp to check for possible disconnect condition
                 ready_timestamp = ticks;
@@ -424,9 +428,16 @@ void main(void) {
                     }
                 }
                 
-                // If red score incement signal is active and cooldown time has elapsed since last
+                // Check to see if score increment cooldown should be cleared
+                if (score_cooldown_active) {
+                    if (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME) {
+                        score_cooldown_active = FALSE;
+                    }
+                }
+                
+                // If red score increment signal is active and cooldown time has elapsed since last
                 // score increment
-                if (RED_SCORE_INCREMENT && (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME)) {
+                if (RED_SCORE_INCREMENT && !score_cooldown_active) {
                     // If increment signal was previously active, check to see if the debounce time has elapsed
                     if (red_inc_pending) {
                         if (ticks - red_inc_start_timestamp > SCORE_INCREMENT_TIME) {
@@ -446,6 +457,7 @@ void main(void) {
                             
                             // Set cooldown to prevent multiple increments in rapid succession
                             score_cooldown_timestamp = ticks;
+                            score_cooldown_active = TRUE;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
@@ -457,9 +469,9 @@ void main(void) {
                     red_inc_pending = FALSE;
                 }
                 
-                // If green score incement signal is active and cooldown time has elapsed since last
+                // If green score increment signal is active and cooldown time has elapsed since last
                 // score increment
-                if (GREEN_SCORE_INCREMENT && (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME)) {
+                if (GREEN_SCORE_INCREMENT && !score_cooldown_active) {
                     // If increment signal was previously active, check to see if the debounce time has elapsed
                     if (green_inc_pending) {
                         if ((ticks - green_inc_start_timestamp > SCORE_INCREMENT_TIME)) {
@@ -479,6 +491,7 @@ void main(void) {
                             
                             // Set cooldown to prevent multiple increments in rapid succession
                             score_cooldown_timestamp = ticks;
+                            score_cooldown_active = TRUE;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
