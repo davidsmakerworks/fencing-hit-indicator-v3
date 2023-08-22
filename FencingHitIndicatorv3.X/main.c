@@ -111,6 +111,11 @@
 #define RED_SCORE_INCREMENT !PORTAbits.RA1
 #define GREEN_SCORE_INCREMENT !PORTCbits.RC2
 
+// DEBUG: Debugging LED pins
+#define NOSC_READY LATAbits.LATA2
+#define STACK_FAULT LATAbits.LATA3
+#define FSM_FAULT LATAbits.LATA4
+
 // State values for finite state machine:
 //
 // STATE_READY: Monitoring for hits by one or both fencers
@@ -211,6 +216,9 @@ uint16_t score_cooldown_timestamp;
 
 // Flag to indicate of score cooldown is active
 uint8_t score_cooldown_active;
+
+// DEBUG: Signal start timestamp
+uint16_t signal_start_timestamp;
 
 // 7-segment digit bits in reverse order (i.e., .GFEDCBA) for MAX6977 LED driver
 const uint8_t digits[10] = {
@@ -370,6 +378,18 @@ void signal_reset(void) {
     }
 }
 
+void test_debug_leds(void) {
+    NOSC_READY = 1;
+    STACK_FAULT = 1;
+    FSM_FAULT = 1;
+            
+    delay_ms(1000);
+    
+    NOSC_READY = 0;
+    STACK_FAULT = 0;
+    FSM_FAULT = 0;
+}
+
 void main(void) {
     uint8_t red_score = 0;
     uint8_t green_score = 0;
@@ -378,10 +398,18 @@ void main(void) {
     
     state = STATE_RESET;
     buzzer_armed = TRUE;
+    
+    BUZZER = 0;
+    RED_LED = 0;
+    GREEN_LED = 0;
+    
     last_reset_timestamp = 0;
     consecutive_activations = 0;
     
     update_score(red_score, green_score);
+    
+    // DEBUG: Test debug LEDs
+    test_debug_leds();
 
     while (1) {
         switch (state) {
@@ -420,6 +448,10 @@ void main(void) {
                 state = STATE_READY;
                 break;
             case STATE_READY:
+                // DEBUG: Set debug LEDs
+                NOSC_READY = !OSCCON3bits.ORDY;
+                STACK_FAULT = PCON0bits.STKOVF | PCON0bits.STKUNF;
+                
                 // Check to see if buzzer should be rearmed (i.e., disconnect condition is cleared)
                 if (!buzzer_armed) {
                     if (ticks - ready_timestamp > DISCONNECT_DETECT_TIME) {
@@ -451,7 +483,14 @@ void main(void) {
                             
                             update_score(red_score, green_score);
                             
+                            // DEBUG: Trace timestamp to troubleshoot buzzer issue
+                            signal_start_timestamp = ticks;
                             signal_increment();
+                            
+                            // DEBUG: Turn on FSM fault LED if function returned early
+                            if (ticks - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
+                                FSM_FAULT = 1;
+                            }
                             
                             red_inc_pending = FALSE;
                             
@@ -485,7 +524,14 @@ void main(void) {
                             
                             update_score(red_score, green_score);
                             
+                            // DEBUG: Trace timestamp to troubleshoot buzzer issue
+                            signal_start_timestamp = ticks;
                             signal_increment();
+                            
+                            // DEBUG: Turn on FSM fault LED if function returned early
+                            if (ticks - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
+                                FSM_FAULT = 1;
+                            }
                             
                             green_inc_pending = FALSE;
                             
