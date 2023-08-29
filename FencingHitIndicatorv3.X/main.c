@@ -237,6 +237,16 @@ void __interrupt() isr(void) {
     }
 }
 
+uint16_t get_ticks(void) {
+    uint16_t t;
+    
+    INTCONbits.GIE = 0; // Disable interrupts to ensure atomic read
+    t = ticks;
+    INTCONbits.GIE = 1;
+    
+    return t;
+}
+
 void init_osc(void) {
     OSCCON1bits.NDIV = 0b0011; // 32 MHz HFINTOSC / 8 = 4 MHz Fosc = 1 MHz instruction clock
 
@@ -313,9 +323,9 @@ void init_system(void) {
 void delay_ms(uint16_t delay_time) {
     uint16_t start_time;
     
-    start_time = ticks;
+    start_time = get_ticks();
     
-    while ((ticks - start_time) < delay_time); // Spin loop until time is expired
+    while ((get_ticks() - start_time) < delay_time); // Spin loop until time is expired
 }
 
 void write_spi(uint8_t val) {
@@ -387,7 +397,7 @@ void main(void) {
         switch (state) {
             case STATE_RESET:            
                 // Record timestamp for disconnect detection
-                last_reset_timestamp = ticks;
+                last_reset_timestamp = get_ticks();
                 
                 // Turn off LEDs
                 RED_LED = 0;
@@ -416,13 +426,13 @@ void main(void) {
                 score_cooldown_active = FALSE;
 
                 // Record timestamp to check for possible disconnect condition
-                ready_timestamp = ticks;
+                ready_timestamp = get_ticks();
                 state = STATE_READY;
                 break;
             case STATE_READY:
                 // Check to see if buzzer should be rearmed (i.e., disconnect condition is cleared)
                 if (!buzzer_armed) {
-                    if (ticks - ready_timestamp > DISCONNECT_DETECT_TIME) {
+                    if (get_ticks() - ready_timestamp > DISCONNECT_DETECT_TIME) {
                         buzzer_armed = TRUE;
                         consecutive_activations = 0;
                     }
@@ -430,7 +440,7 @@ void main(void) {
                 
                 // Check to see if score increment cooldown should be cleared
                 if (score_cooldown_active) {
-                    if (ticks - score_cooldown_timestamp > SCORE_COOLDOWN_TIME) {
+                    if (get_ticks() - score_cooldown_timestamp > SCORE_COOLDOWN_TIME) {
                         score_cooldown_active = FALSE;
                     }
                 }
@@ -440,7 +450,7 @@ void main(void) {
                 if (RED_SCORE_INCREMENT && !score_cooldown_active) {
                     // If increment signal was previously active, check to see if the debounce time has elapsed
                     if (red_inc_pending) {
-                        if (ticks - red_inc_start_timestamp > SCORE_INCREMENT_TIME) {
+                        if (get_ticks() - red_inc_start_timestamp > SCORE_INCREMENT_TIME) {
                             // If both score signals are active, reset score
                             if (GREEN_SCORE_INCREMENT) {
                                 red_score = 0;
@@ -456,12 +466,12 @@ void main(void) {
                             red_inc_pending = FALSE;
                             
                             // Set cooldown to prevent multiple increments in rapid succession
-                            score_cooldown_timestamp = ticks;
+                            score_cooldown_timestamp = get_ticks();
                             score_cooldown_active = TRUE;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
-                        red_inc_start_timestamp = ticks;
+                        red_inc_start_timestamp = get_ticks();
                         red_inc_pending = TRUE;                         
                     }
                 } else {
@@ -474,7 +484,7 @@ void main(void) {
                 if (GREEN_SCORE_INCREMENT && !score_cooldown_active) {
                     // If increment signal was previously active, check to see if the debounce time has elapsed
                     if (green_inc_pending) {
-                        if ((ticks - green_inc_start_timestamp > SCORE_INCREMENT_TIME)) {
+                        if ((get_ticks() - green_inc_start_timestamp > SCORE_INCREMENT_TIME)) {
                             // If both score signals are active, reset score
                             if (RED_SCORE_INCREMENT) {
                                 red_score = 0;
@@ -490,12 +500,12 @@ void main(void) {
                             green_inc_pending = FALSE;
                             
                             // Set cooldown to prevent multiple increments in rapid succession
-                            score_cooldown_timestamp = ticks;
+                            score_cooldown_timestamp = get_ticks();
                             score_cooldown_active = TRUE;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
-                        green_inc_start_timestamp = ticks;
+                        green_inc_start_timestamp = get_ticks();
                         green_inc_pending = TRUE;                         
                     }
                 } else {
@@ -518,7 +528,7 @@ void main(void) {
                     if (red_pending) {
                         // Then if this is the first hit recorded in the sequence
                         // set the lockout timer to allow time for the other fencer to hit
-                        if ((ticks - red_start_timestamp) > MIN_HIT_TIME) {                        
+                        if ((get_ticks() - red_start_timestamp) > MIN_HIT_TIME) {                        
                             if (!lockout_pending) {
                                 lockout_start_timestamp = red_start_timestamp;
                                 lockout_pending = TRUE;
@@ -535,7 +545,7 @@ void main(void) {
                     } else {
                         // If this is the first moment that the tip has been depressed,
                         // record that time for comparison with MIN_HIT_TIME
-                        red_start_timestamp = ticks;
+                        red_start_timestamp = get_ticks();
                         red_pending = TRUE;
                     }
                 } else {
@@ -549,7 +559,7 @@ void main(void) {
                     // Then if this is the first hit recorded in the sequence
                     // set the lockout timer to allow time for the other fencer to hit
                     if (green_pending) {
-                        if ((ticks - green_start_timestamp) > MIN_HIT_TIME) {
+                        if ((get_ticks() - green_start_timestamp) > MIN_HIT_TIME) {
                             if (!lockout_pending) {
                                 lockout_start_timestamp = green_start_timestamp;
                                 lockout_pending = TRUE;
@@ -566,7 +576,7 @@ void main(void) {
                     } else {
                         // If this is the first moment that the tip has been depressed,
                         // record that time for comparison with MIN_HIT_TIME
-                        green_start_timestamp = ticks;
+                        green_start_timestamp = get_ticks();
                         green_pending = TRUE;
                     }
                 } else {
@@ -577,13 +587,13 @@ void main(void) {
 
                 // Continue to check for a hit scored by the other fencer until
                 // lockout time has expired
-                if (lockout_pending && (ticks - lockout_start_timestamp > LOCKOUT_TIME)) {
+                if (lockout_pending && (get_ticks() - lockout_start_timestamp > LOCKOUT_TIME)) {
                     state = STATE_LOCKOUT; // Go into lockout state after LOCKOUT_TIME ms
                 }
                 break;
             case STATE_LOCKOUT:
                  // Check for multiple activations in rapid succession which can indicate a disconnected foil
-                if (ticks - last_reset_timestamp < DISCONNECT_DETECT_TIME) {
+                if (get_ticks() - last_reset_timestamp < DISCONNECT_DETECT_TIME) {
                     consecutive_activations++;
                     
                     // Subtract 2 as workaround for the way consecutive activations are counted
