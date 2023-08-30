@@ -494,11 +494,11 @@ void main(void) {
                             update_score(red_score, green_score);
                             
                             // DEBUG: Trace timestamp to troubleshoot buzzer issue
-                            signal_start_timestamp = ticks;
+                            signal_start_timestamp = get_ticks();
                             signal_increment();
                             
                             // DEBUG: Turn on FSM fault LED if function returned early
-                            if (ticks - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
+                            if (get_ticks() - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
                                 FSM_FAULT = 1;
                             }
                             
@@ -535,11 +535,11 @@ void main(void) {
                             update_score(red_score, green_score);
                             
                             // DEBUG: Trace timestamp to troubleshoot buzzer issue
-                            signal_start_timestamp = ticks;
+                            signal_start_timestamp = get_ticks();
                             signal_increment();
                             
                             // DEBUG: Turn on FSM fault LED if function returned early
-                            if (ticks - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
+                            if (get_ticks() - signal_start_timestamp < SCORE_INC_BUZZER_TIME) {
                                 FSM_FAULT = 1;
                             }
                             
