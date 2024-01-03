@@ -3171,7 +3171,7 @@
     (property "Value" "PIC16F18855-I-ML" (at 73.66 58.42 90)
       (effects (font (size 1.524 1.524)))
     )
-    (property "Footprint" "Package_DFN_QFN:QFN-28-1EP_6x6mm_P0.65mm_EP4.25x4.25mm_ThermalVias" (at 80.01 58.42 0)
+    (property "Footprint" "Package_DFN_QFN:QFN-28-1EP_6x6mm_P0.65mm_EP4.25x4.25mm" (at 80.01 58.42 0)
       (effects (font (size 1.524 1.524)) hide)
     )
     (property "Datasheet" "" (at 80.01 58.42 0)

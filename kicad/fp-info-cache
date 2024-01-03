@@ -1,4 +1,4 @@
-1019299200749569
+1035586590316146
 Package_DFN_QFN
 AMS_QFN-4-1EP_2x2mm_P0.95mm_EP0.7x1.6mm
 UFD Package, 4-Lead Plastic QFN (2mm x 2mm), http://ams.com/eng/content/download/950231/2267959/483138
@@ -315,6 +315,20 @@ DFN 0.5
 15
 11
 Package_DFN_QFN
+DFN-10-1EP_3x3mm_P0.5mm_EP1.58x2.35mm
+DFN, 10 Pin (https://ww1.microchip.com/downloads/aemDocuments/documents/OTH/ProductDocuments/DataSheets/22005b.pdf#page=24), generated with kicad-footprint-generator ipc_noLead_generator.py
+DFN NoLead
+0
+15
+11
+Package_DFN_QFN
+DFN-10-1EP_3x3mm_P0.5mm_EP1.58x2.35mm_ThermalVias
+DFN, 10 Pin (https://ww1.microchip.com/downloads/aemDocuments/documents/OTH/ProductDocuments/DataSheets/22005b.pdf#page=24), generated with kicad-footprint-generator ipc_noLead_generator.py
+DFN NoLead
+0
+20
+11
+Package_DFN_QFN
 DFN-10-1EP_3x3mm_P0.5mm_EP1.65x2.38mm
 DFN, 10 Pin (https://www.analog.com/media/en/technical-documentation/data-sheets/3471fb.pdf#page=15), generated with kicad-footprint-generator ipc_noLead_generator.py
 DFN NoLead
@@ -348,6 +362,13 @@ DDB Package; 12-Lead Plastic DFN (3mm x 2mm) (see Linear Technology DFN_12_05-08
 DFN 0.45
 0
 15
+13
+Package_DFN_QFN
+DFN-12-1EP_3x3mm_P0.5mm_EP1.4x2.55mm
+DFN, 12 Pin (https://www.st.com/resource/en/datasheet/st25dv04k.pdf), generated with kicad-footprint-generator ipc_noLead_generator.py
+DFN NoLead
+0
+14
 13
 Package_DFN_QFN
 DFN-12-1EP_3x3mm_P0.5mm_EP1.6x2.5mm
@@ -762,6 +783,20 @@ Maxim TDFN NoLead
 0
 11
 7
+Package_DFN_QFN
+Maxim_TDFN-12-1EP_3x3mm_P0.5mm_EP1.7x2.5mm
+Maxim TDFN, 12 Pin (https://www.analog.com/media/en/package-pcb-resources/land-pattern/tdfn/90-0397.pdf)
+DFN NoLead
+0
+17
+13
+Package_DFN_QFN
+Maxim_TDFN-12-1EP_3x3mm_P0.5mm_EP1.7x2.5mm_ThermalVias
+Maxim TDFN, 12 Pin (https://www.analog.com/media/en/package-pcb-resources/land-pattern/tdfn/90-0397.pdf)
+DFN NoLead
+0
+23
+13
 Package_DFN_QFN
 Micrel_MLF-8-1EP_2x2mm_P0.5mm_EP0.6x1.2mm
 Micrel  MLF, 8 Pin (http://ww1.microchip.com/downloads/en/DeviceDoc/mic23050.pdf), generated with kicad-footprint-generator ipc_noLead_generator.py
@@ -1524,6 +1559,20 @@ QFN, 28 Pin (http://www.analog.com/media/en/technical-documentation/data-sheets/
 QFN NoLead
 0
 48
+29
+Package_DFN_QFN
+QFN-28-1EP_5x5mm_P0.5mm_EP3.1x3.1mm
+QFN, 28 Pin (https://www.analog.com/media/en/technical-documentation/data-sheets/TMC2202_TMC2208_TMC2224_datasheet_rev1.14.pdf#page=77), generated with kicad-footprint-generator ipc_noLead_generator.py
+QFN NoLead
+0
+38
+29
+Package_DFN_QFN
+QFN-28-1EP_5x5mm_P0.5mm_EP3.1x3.1mm_ThermalVias
+QFN, 28 Pin (https://www.analog.com/media/en/technical-documentation/data-sheets/TMC2202_TMC2208_TMC2224_datasheet_rev1.14.pdf#page=77), generated with kicad-footprint-generator ipc_noLead_generator.py
+QFN NoLead
+0
+71
 29
 Package_DFN_QFN
 QFN-28-1EP_5x5mm_P0.5mm_EP3.35x3.35mm
@@ -3346,6 +3395,20 @@ QFN NoLead
 127
 65
 Package_DFN_QFN
+Texas_S-PWQFN-N16_EP1.2x0.8mm
+Texas RTE WQFN, 16 Pin (https://www.ti.com/lit/ds/symlink/tps43060.pdf#page=40), generated with kicad-footprint-generator ipc_noLead_generator.py
+Texas WQFN NoLead
+0
+21
+17
+Package_DFN_QFN
+Texas_S-PWQFN-N16_EP1.2x0.8mm_ThermalVias
+Texas RTE WQFN, 16 Pin (https://www.ti.com/lit/ds/symlink/tps43060.pdf#page=40), generated with kicad-footprint-generator ipc_noLead_generator.py
+Texas WQFN NoLead
+0
+23
+17
+Package_DFN_QFN
 Texas_S-PWQFN-N16_EP2.1x2.1mm
 QFN, 16 Pin (http://www.ti.com/lit/ds/symlink/drv8801.pdf#page=31 MO-220 variation VGGC), generated with kicad-footprint-generator ipc_noLead_generator.py
 QFN NoLead
@@ -4066,20 +4129,6 @@ WQFN NoLead
 0
 24
 15
-Package_DFN_QFN
-WQFN-16-1EP_3x3mm_P0.5mm_EP0.8x1.2mm
-WQFN, 16 Pin (https://www.ti.com/lit/ds/symlink/tps43060.pdf#page=40), generated with kicad-footprint-generator ipc_noLead_generator.py
-WQFN NoLead
-0
-21
-17
-Package_DFN_QFN
-WQFN-16-1EP_3x3mm_P0.5mm_EP0.8x1.2mm_ThermalVias
-WQFN, 16 Pin (https://www.ti.com/lit/ds/symlink/tps43060.pdf#page=40), generated with kicad-footprint-generator ipc_noLead_generator.py
-WQFN NoLead
-0
-23
-17
 Package_DFN_QFN
 WQFN-16-1EP_3x3mm_P0.5mm_EP1.6x1.6mm
 WQFN, 16 Pin (https://www.ti.com/lit/ds/symlink/tpa6132a2.pdf#page=24), generated with kicad-footprint-generator ipc_noLead_generator.py
