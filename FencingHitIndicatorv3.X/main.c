@@ -1,7 +1,7 @@
 
 /*
  * Fencing Hit Indicator v3
- * Copyright (c) 2023 David Rice
+ * Copyright (c) 2024 David Rice
  * 
  * github.com/davidsmakerworks
  * 
@@ -9,24 +9,22 @@
  * lockout time as specified by current foil fencing rules. Score display is also
  * implemented.
  * 
- * Designed for PIC 16F18855 and MAX6977 LED drivers
+ * Designed for PIC 16F18855 and STP16CPC26 LED drivers
  * 
  * INPUTS:
  * RA0 - Red fencer B-line
- * RC3 - Green fencer B-line
+ * RA3 - Green fencer B-line
  * 
  * RA1 - Red fencer score increment
- * RC2 - Green fencer score increment 
+ * RA2 - Green fencer score increment 
  * 
  * OUTPUTS:
- * RB4 - Red LED
- * RC5 - Green LED
- * RC2 - Active buzzer
+ * RB0 - PWM buzzer
  * 
- * RB5 - Red 7-segment driver latch enable
- * RC4 - Green 7-segment driver latch enable
- * RB1 - 7-segment driver data (SSP1DAT)
- * RB0 - 7 segment driver clock (SSP1CLK)
+ * RC2 - Red LED display driver latch enable
+ * RC3 - Green LED display driver latch enable
+ * RC1 - LED display driver data (SSP1DAT)
+ * RC0 - LED display driver clock (SSP1CLK)
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -94,22 +92,15 @@
 
 // Pins where the fencers' foils are connected
 #define RED_FOIL PORTAbits.RA0
-#define GREEN_FOIL PORTCbits.RC3
+#define GREEN_FOIL PORTAbits.RA3
 
-// Pins where hit indicator LED driver is connected
-#define RED_LED LATBbits.LATB4
-#define GREEN_LED LATCbits.LATC5
-
-// Pin where active buzzer is connected
-#define BUZZER LATCbits.LATC7
-
-// Pins where score driver latch enables are connected
-#define RED_SCORE_LATCH LATBbits.LATB5
-#define GREEN_SCORE_LATCH LATCbits.LATC4
+// Pins where LED display driver latch enables are connected
+#define RED_SCORE_LATCH LATCbits.LATC2
+#define GREEN_SCORE_LATCH LATCbits.LATC3
 
 // Pins where score increment signals are connected
 #define RED_SCORE_INCREMENT !PORTAbits.RA1
-#define GREEN_SCORE_INCREMENT !PORTCbits.RC2
+#define GREEN_SCORE_INCREMENT !PORTAbits.RA2
 
 // State values for finite state machine:
 //
