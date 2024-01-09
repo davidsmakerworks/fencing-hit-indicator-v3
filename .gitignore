@@ -21,10 +21,14 @@
 # Executables
 *.exe
 
-
 # KDE specific
 .directory
 
 # Misc
 .svn
 *.bak
+
+# KiCad caches
+fp-info-cache
+
+
