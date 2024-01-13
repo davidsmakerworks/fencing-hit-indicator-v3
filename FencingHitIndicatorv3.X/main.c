@@ -244,14 +244,31 @@ void init_osc(void) {
     while (!OSCCON3bits.ORDY); // Wait for clock switch to complete
 }
 
-void init_timer(void) {
+void init_timers(void) {
+    // Timer2 is used to provide a 1 msec system tick for hit detection and other purposes
     T2CLKCONbits.T2CS = 0b0001; // Clock source Fosc/4
-    T2CONbits.T2CKPS = 0b00; // 1:1 prescaler = 1 MHz clock with Fosc = 4 MHz
+    T2CONbits.T2CKPS = 0b000; // 1:1 prescaler = 1 MHz clock with Fosc = 4 MHz
     T2CONbits.T2OUTPS = 0b1001; // 1:10 postscaler = 100 kHz count rate
     
     PR2 = 100; // 100 counts = 1 msec
     
-    T2CONbits.TMR2ON = 1; // Turn on Timer2
+    T2CONbits.ON = 1; // Turn on Timer2
+    
+    // Timer4 is used as the period source for CCP1 PWM generator
+    T4CLKCONbits.T4CS = 0b0010; // Clock source Fosc
+    T4CONbits.T4CKPS = 0b111; // 1:128 prescaler = 31.25 kHz clock with Fosc = 4 MHz
+    T4CONbits.T4OUTPS = 0b0000; // 1:2 postscaler = 15.625 kHz count rate = minimum PWM frequency of about 125 Hz
+    
+    PR4 = 127; // Default to middle frequency
+    
+    T4CONbits.ON = 1; // Turn on Timer4
+}
+
+void init_ccp(void) {
+    CCP1CONbits.FMT = 0; // Right-aligned pulse width
+    CCP1CONbits.MODE = 0b1111; // PWM mode
+    
+    CCPTMRS0bits.C1TSEL = 0b10; // CCP1 PWM based on Timer4           
 }
 
 void init_pps() {
@@ -302,7 +319,8 @@ void init_ports(void) {
 void init_system(void) {
     init_osc();
     init_ports();
-    init_timer();
+    init_timers();
+    init_ccp();
     init_pps();
     init_spi();
     init_interrupts();
@@ -325,6 +343,17 @@ void write_spi(uint8_t val) {
     while (!PIR3bits.SSP1IF); // Wait for transmission to complete
     
     PIR3bits.SSP1IF = 0;
+}
+
+void buzzer_on(uint8_t period) {
+    PR4 = period;   
+    CCPR1 = period / 2;
+    
+    CCP1CONbits.EN = 1;
+}
+
+void buzzer_off(void) {
+    CCP1CONbits.EN = 0;
 }
 
 void update_score(uint8_t red_score, uint8_t green_score) {
