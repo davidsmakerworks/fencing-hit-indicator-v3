@@ -30,11 +30,11 @@
         <targetPluginBoard></targetPluginBoard>
         <platformTool>noID</platformTool>
         <languageToolchain>XC8</languageToolchain>
-        <languageToolchainVersion>2.41</languageToolchainVersion>
+        <languageToolchainVersion>2.45</languageToolchainVersion>
         <platform>3</platform>
       </toolsSet>
       <packs>
-        <pack name="PIC16F1xxxx_DFP" vendor="Microchip" version="1.19.363"/>
+        <pack name="PIC16F1xxxx_DFP" vendor="Microchip" version="1.23.382"/>
       </packs>
       <ScriptingSettings>
       </ScriptingSettings>
