@@ -86,9 +86,7 @@
 
 #include <xc.h>
 #include <stdint.h>
-
-#define FALSE 0
-#define TRUE !FALSE
+#include <stdbool.h>
 
 // Pins where the fencers' foils are connected
 #define RED_FOIL PORTAbits.RA0
@@ -148,6 +146,17 @@
 // Length of score reset signal beeps in msec
 #define SCORE_RESET_SIGNAL_TIME 100
 
+// Bit pattern to illuminate hit indicator segments on score display
+#define HIT_INDICATOR_ON 0b00111111
+#define HIT_INDICATOR_OFF 0b00000000
+
+// Macros for which display is active
+#define RED_DISPLAY 0
+#define GREEN_DISPLAY 1
+
+// Standard period for hit indication tone (about 2000 Hz)
+#define BUZZER_PERIOD 16
+
 // The time stamps (in ms) at which the fencer's hit was first detected
 // This condition must persist for MIN_HIT_TIME ms to be considered a valid hit
 uint16_t red_start_timestamp;
@@ -176,32 +185,32 @@ uint16_t ready_timestamp;
 // disconnected.
 uint8_t consecutive_activations;
 
-// TRUE if buzzer is armed (i.e., both foils are connected and hits are
-// valid). FALSE if the buzzer has been sounding continuously due to one
+// true if buzzer is armed (i.e., both foils are connected and hits are
+// valid). false if the buzzer has been sounding continuously due to one
 // or both foils being disconnected.
-uint8_t buzzer_armed;
+bool buzzer_armed;
 
 // State variable for finite state machine in main loop
 uint8_t state;
 
 // Indicates if the tip is currently depressed (i.e., a hit will be registered
 // if the tip remains depressed for MIN_HIT_TIME ms) 
-uint8_t red_pending;
-uint8_t green_pending;
+bool red_pending;
+bool green_pending;
 
 // Indicates that a hit has been registered by one fencer, and now the other fencer
 // has LOCKOUT_TIME ms to also register a hit
-uint8_t lockout_pending;
+bool lockout_pending;
 
 // Indicates that a score increment is pending - used to avoid false detections
-uint8_t red_inc_pending;
-uint8_t green_inc_pending;
+bool red_inc_pending;
+bool green_inc_pending;
 
 // Timestamp when last score increment occurred
 uint16_t score_cooldown_timestamp;
 
 // Flag to indicate of score cooldown is active
-uint8_t score_cooldown_active;
+bool score_cooldown_active;
 
 // 7-segment digit bits in reverse order (i.e., .GFEDCBA) for MAX6977 LED driver
 const uint8_t digits[10] = {
@@ -250,22 +259,22 @@ void init_timers(void) {
     T2CONbits.T2CKPS = 0b000; // 1:1 prescaler = 1 MHz clock with Fosc = 4 MHz
     T2CONbits.T2OUTPS = 0b1001; // 1:10 postscaler = 100 kHz count rate
     
-    PR2 = 100; // 100 counts = 1 msec
+    T2PR = 100; // 100 counts = 1 msec
     
-    T2CONbits.ON = 1; // Turn on Timer2
+    T2CONbits.T2ON = 1; // Turn on Timer2
     
     // Timer4 is used as the period source for CCP1 PWM generator
-    T4CLKCONbits.T4CS = 0b0010; // Clock source Fosc
-    T4CONbits.T4CKPS = 0b111; // 1:128 prescaler = 31.25 kHz clock with Fosc = 4 MHz
-    T4CONbits.T4OUTPS = 0b0000; // 1:2 postscaler = 15.625 kHz count rate = minimum PWM frequency of about 125 Hz
+    T4CLKCONbits.T4CS = 0b0001; // Clock source Fosc/4 as required by CCP module
+    T4CONbits.T4CKPS = 0b101; // 1:32 prescaler = 31.25 kHz clock with Fosc = 4 MHz
+    T4CONbits.T4OUTPS = 0b0000; // 1:1 postscaler (postscaler not used by CCP)
     
-    PR4 = 127; // Default to middle frequency
+    T4PR = 127; // Default to lowest frequency (assuming 50% duty cycle)
     
-    T4CONbits.ON = 1; // Turn on Timer4
+    T4CONbits.T4ON = 1; // Turn on Timer4
 }
 
 void init_ccp(void) {
-    CCP1CONbits.FMT = 0; // Right-aligned pulse width
+    CCP1CONbits.FMT = 1; // Left-aligned pulse width
     CCP1CONbits.MODE = 0b1111; // PWM mode
     
     CCPTMRS0bits.C1TSEL = 0b10; // CCP1 PWM based on Timer4           
@@ -279,19 +288,21 @@ void init_pps() {
     // Unlock PPS
     PPSLOCKbits.PPSLOCKED = 0;
      
-    RB1PPS = 0x15; // SSP1DAT output
-    RB0PPS = 0x14; // SSP1CLK output
+    RC1PPS = 0x15; // SSP1DAT output
+    RC0PPS = 0x14; // SSP1CLK output
+    
+    RC7PPS = 0x09; // CCP1 output
     
     // Lock PPS
     PPSLOCKbits.PPSLOCKED = 1;
 }
 
-void init_spi(void) {
+void init_mssp(void) {
     SSP1CON1bits.SSPM = 0b1010; // SPI Master mode, clock = FOSC/(4 * (SSPxADD+1))
     SSP1CON1bits.CKP = 0; // Clock idle state is low
     SSP1STATbits.CKE = 1; // Transmit on active-to-idle
     
-    SSP1ADD = 0x09; // 100 kHz at Fosc = 4 MHz
+    SSP1ADD = 0x04; // 200 kHz at Fosc = 4 MHz
     
     SSP1CON1bits.SSPEN = 1; // Enable MSSP1 for SPI
 }
@@ -322,7 +333,7 @@ void init_system(void) {
     init_timers();
     init_ccp();
     init_pps();
-    init_spi();
+    init_mssp();
     init_interrupts();
 
     INTCONbits.PEIE = 1; // Enable peripheral interrupts
@@ -346,43 +357,50 @@ void write_spi(uint8_t val) {
 }
 
 void buzzer_on(uint8_t period) {
-    PR4 = period;   
-    CCPR1 = period / 2;
+    T4PR = period;
     
-    CCP1CONbits.EN = 1;
+    CCPR1H = period / 2; // Always use 50% duty cycle, left-aligned
+    CCPR1L = 0;
+    
+    CCP1CONbits.CCP1EN = 1;
 }
 
 void buzzer_off(void) {
-    CCP1CONbits.EN = 0;
+    CCP1CONbits.CCP1EN = 0;
 }
 
-void update_score(uint8_t red_score, uint8_t green_score) {
+void update_display(uint8_t color, uint8_t score, bool hit) {
     // Avoid going beyond end of digits array
-    if (red_score > 9) {
-        red_score = 9;
+    if (score > 9) {
+        score = 9;
     }
     
-    if (green_score > 9) {
-        green_score = 9;
+    if (color == RED_DISPLAY) {
+        RED_SCORE_LATCH = 1;
+        GREEN_SCORE_LATCH = 0;
+    } else {
+        RED_SCORE_LATCH = 0;
+        GREEN_SCORE_LATCH = 1;
     }
     
-    RED_SCORE_LATCH = 1;
-    GREEN_SCORE_LATCH = 0;
-    write_spi(digits[red_score]);
+    write_spi(digits[score]);
+    
+    if (hit) {
+        write_spi(HIT_INDICATOR_ON);
+    } else {
+        write_spi(HIT_INDICATOR_OFF);
+    }
     
     RED_SCORE_LATCH = 0;
-    GREEN_SCORE_LATCH = 1;
-    write_spi(digits[green_score]);
-    
     GREEN_SCORE_LATCH = 0;
 }
 
 void signal_increment(void) {
     // Sound a brief tone to indicate that the score has been incremented
 
-    BUZZER = 1;
+    buzzer_on(BUZZER_PERIOD);
     delay_ms(SCORE_INC_BUZZER_TIME);
-    BUZZER = 0;
+    buzzer_off();
 }
 
 void signal_reset(void) {
@@ -393,9 +411,9 @@ void signal_reset(void) {
     delay_ms(SCORE_RESET_TIME);
                     
     for (i = 0; i < 3; i++) {
-        BUZZER = 1;
+        buzzer_on(BUZZER_PERIOD);
         delay_ms(SCORE_RESET_SIGNAL_TIME);
-        BUZZER = 0;
+        buzzer_off();
         delay_ms(SCORE_RESET_SIGNAL_TIME);
     }
 }
@@ -407,11 +425,12 @@ void main(void) {
     init_system();
     
     state = STATE_RESET;
-    buzzer_armed = TRUE;
+    buzzer_armed = true;
     last_reset_timestamp = 0;
     consecutive_activations = 0;
     
-    update_score(red_score, green_score);
+    update_display(RED_DISPLAY, red_score, false);
+    update_display(GREEN_DISPLAY, green_score, false);
 
     while (1) {
         switch (state) {
@@ -419,12 +438,12 @@ void main(void) {
                 // Record timestamp for disconnect detection
                 last_reset_timestamp = get_ticks();
                 
-                // Turn off LEDs
-                RED_LED = 0;
-                GREEN_LED = 0;
+                // Turn off hit LEDs
+                update_display(RED_DISPLAY, red_score, false);
+                update_display(GREEN_DISPLAY, green_score, false);
 
                 // Turn off buzzer
-                BUZZER = 0;
+                buzzer_off();
 
                 // Clear all event timestamps and flags
                 red_start_timestamp = 0;
@@ -436,14 +455,14 @@ void main(void) {
                 
                 score_cooldown_timestamp = 0;
 
-                red_pending = FALSE;
-                green_pending = FALSE;
-                lockout_pending = FALSE;
+                red_pending = false;
+                green_pending = false;
+                lockout_pending = false;
                 
-                red_inc_pending = FALSE;
-                green_inc_pending = FALSE;
+                red_inc_pending = false;
+                green_inc_pending = false;
                 
-                score_cooldown_active = FALSE;
+                score_cooldown_active = false;
 
                 // Record timestamp to check for possible disconnect condition
                 ready_timestamp = get_ticks();
@@ -453,7 +472,7 @@ void main(void) {
                 // Check to see if buzzer should be rearmed (i.e., disconnect condition is cleared)
                 if (!buzzer_armed) {
                     if (get_ticks() - ready_timestamp > DISCONNECT_DETECT_TIME) {
-                        buzzer_armed = TRUE;
+                        buzzer_armed = true;
                         consecutive_activations = 0;
                     }
                 }
@@ -461,7 +480,7 @@ void main(void) {
                 // Check to see if score increment cooldown should be cleared
                 if (score_cooldown_active) {
                     if (get_ticks() - score_cooldown_timestamp > SCORE_COOLDOWN_TIME) {
-                        score_cooldown_active = FALSE;
+                        score_cooldown_active = false;
                     }
                 }
                 
@@ -479,24 +498,25 @@ void main(void) {
                                 red_score++;
                             }                            
                             
-                            update_score(red_score, green_score);
+                            update_display(RED_DISPLAY, red_score, false);
+                            update_display(GREEN_DISPLAY, green_score, false);
                             
                             signal_increment();
                             
-                            red_inc_pending = FALSE;
+                            red_inc_pending = false;
                             
                             // Set cooldown to prevent multiple increments in rapid succession
                             score_cooldown_timestamp = get_ticks();
-                            score_cooldown_active = TRUE;
+                            score_cooldown_active = true;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
                         red_inc_start_timestamp = get_ticks();
-                        red_inc_pending = TRUE;                         
+                        red_inc_pending = true;                         
                     }
                 } else {
                     // Clear pending increment if no signal or if signal goes inactive prior to debounce time
-                    red_inc_pending = FALSE;
+                    red_inc_pending = false;
                 }
                 
                 // If green score increment signal is active and cooldown time has elapsed since last
@@ -513,24 +533,25 @@ void main(void) {
                                 green_score++;
                             }                            
                             
-                            update_score(red_score, green_score);
+                            update_display(RED_DISPLAY, red_score, false);
+                            update_display(GREEN_DISPLAY, green_score, false);
                             
                             signal_increment();
                             
-                            green_inc_pending = FALSE;
+                            green_inc_pending = false;
                             
                             // Set cooldown to prevent multiple increments in rapid succession
                             score_cooldown_timestamp = get_ticks();
-                            score_cooldown_active = TRUE;
+                            score_cooldown_active = true;
                         }
                     } else {
                         // Set debounce timer on initial signal activation
                         green_inc_start_timestamp = get_ticks();
-                        green_inc_pending = TRUE;                         
+                        green_inc_pending = true;                         
                     }
                 } else {
                     // Clear pending increment if no signal or if signal goes inactive prior to debounce time
-                    green_inc_pending = FALSE;
+                    green_inc_pending = false;
                 }
                 
                 // Automatically reset score if the score limit is reached
@@ -540,7 +561,8 @@ void main(void) {
                     red_score = 0;
                     green_score = 0;
                     
-                    update_score(red_score, green_score);
+                    update_display(RED_DISPLAY, red_score, false);
+                    update_display(GREEN_DISPLAY, green_score, false);
                 }
                 
                 // If red side tip is depressed and if it has been depressed for MIN_HIT_TIME ms
@@ -551,27 +573,27 @@ void main(void) {
                         if ((get_ticks() - red_start_timestamp) > MIN_HIT_TIME) {                        
                             if (!lockout_pending) {
                                 lockout_start_timestamp = red_start_timestamp;
-                                lockout_pending = TRUE;
+                                lockout_pending = true;
                             }
 
-                            // Light up red hit indicator LED
-                            RED_LED = 1; 
+                            // Light up red hit indicator segments
+                            update_display(RED_DISPLAY, red_score, true); 
 
                             // Sound buzzer if armed
                             if (buzzer_armed) {
-                                BUZZER = 1; 
+                                buzzer_on(BUZZER_PERIOD); 
                             }
                         }
                     } else {
                         // If this is the first moment that the tip has been depressed,
                         // record that time for comparison with MIN_HIT_TIME
                         red_start_timestamp = get_ticks();
-                        red_pending = TRUE;
+                        red_pending = true;
                     }
                 } else {
                     // If tip is not depressed, or is released after less
                     // than MIN_HIT_TIME ms, cancel pending hit
-                    red_pending = FALSE;
+                    red_pending = false;
                 }
                 
                 // If green side tip is depressed and if it has been depressed for MIN_HIT_TIME ms
@@ -582,27 +604,27 @@ void main(void) {
                         if ((get_ticks() - green_start_timestamp) > MIN_HIT_TIME) {
                             if (!lockout_pending) {
                                 lockout_start_timestamp = green_start_timestamp;
-                                lockout_pending = TRUE;
+                                lockout_pending = true;
                             }
 
-                            // Light up green LED
-                            GREEN_LED = 1;
+                            // Light up green hit indicator segments
+                            update_display(GREEN_DISPLAY, green_score, true);
 
                             // Sound buzzer if armed
                             if (buzzer_armed) {
-                                BUZZER = 1; 
+                                buzzer_on(BUZZER_PERIOD); 
                             }
                         }
                     } else {
                         // If this is the first moment that the tip has been depressed,
                         // record that time for comparison with MIN_HIT_TIME
                         green_start_timestamp = get_ticks();
-                        green_pending = TRUE;
+                        green_pending = true;
                     }
                 } else {
                     // If tip is not depressed, or is released after less
                     // than MIN_HIT_TIME ms, cancel pending hit
-                    green_pending = FALSE;
+                    green_pending = false;
                 }
 
                 // Continue to check for a hit scored by the other fencer until
@@ -618,14 +640,14 @@ void main(void) {
                     
                     // Subtract 2 as workaround for the way consecutive activations are counted
                     if (consecutive_activations > DISCONNECT_DETECT_COUNT - 2) {
-                        buzzer_armed = FALSE;
+                        buzzer_armed = false;
                     }
                 }
                 
                 // Allow buzzer to sound for BUZZER_TIME ms, keep LEDs on for
                 // additional ADD_LIGHT_TIME ms after that
                 delay_ms(BUZZER_TIME);
-                BUZZER = 0;
+                buzzer_off();
                 delay_ms(ADDL_LIGHT_TIME);
 
                 // Reset for next hit
