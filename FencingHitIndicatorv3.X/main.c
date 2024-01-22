@@ -226,6 +226,28 @@ const uint8_t digits[10] = {
     0b01100111
 };
 
+const uint8_t startup_tones[14] = {
+    64,100,
+    56,100,
+    48,100,
+    40,100,
+    32,100,
+    20,100,
+    0,0
+};
+
+const uint8_t increment_tones[6] = {
+    32,75,
+    20,75,
+    0,0
+};
+
+const uint8_t reset_tones[6] = {
+    24,75,
+    30,75,
+    0,0
+};
+
 volatile uint16_t ticks = 0; // 1 tick = 1 msec
 
 void __interrupt() isr(void) {
@@ -369,6 +391,36 @@ void buzzer_off(void) {
     CCP1CONbits.CCP1EN = 0;
 }
 
+void play_tones(uint8_t *tones) {
+    uint8_t period;
+    uint8_t duration;
+    
+    uint8_t index = 0;
+    
+    do {
+        // This could also be done the fancy way with the postincrement
+        // operator and omitting the line index += 2:
+        // period = tones[index++];
+        // duration = tones[index++];
+        //
+        // That is too fancy for me.
+        period = tones[index];
+        duration = tones[index + 1];
+        
+        if (period > 0) {
+            buzzer_on(period);
+        } else {
+            buzzer_off();
+        }
+        
+        delay_ms(duration);
+        
+        index += 2;
+    } while (duration != 0);
+    
+    buzzer_off();
+}
+
 void update_display(uint8_t color, uint8_t score, bool hit) {
     // Avoid going beyond end of digits array
     if (score > 9) {
@@ -396,23 +448,22 @@ void update_display(uint8_t color, uint8_t score, bool hit) {
 }
 
 void signal_increment(void) {
-    // Sound a brief tone to indicate that the score has been incremented
+    // Sound a brief signal to indicate that the score has been incremented
 
-    buzzer_on(BUZZER_PERIOD);
+    play_tones(increment_tones);
     delay_ms(SCORE_INC_BUZZER_TIME);
     buzzer_off();
 }
 
 void signal_reset(void) {
-    // Sound 3 quick tones to indicate that the score has automatically reset
+    // Sound 3 quick signals to indicate that the score has automatically reset
 
     uint8_t i;
     
     delay_ms(SCORE_RESET_TIME);
                     
     for (i = 0; i < 3; i++) {
-        buzzer_on(BUZZER_PERIOD);
-        delay_ms(SCORE_RESET_SIGNAL_TIME);
+        play_tones(reset_tones);
         buzzer_off();
         delay_ms(SCORE_RESET_SIGNAL_TIME);
     }
@@ -431,6 +482,9 @@ void main(void) {
     
     update_display(RED_DISPLAY, red_score, false);
     update_display(GREEN_DISPLAY, green_score, false);
+    
+    play_tones(startup_tones);
+    delay_ms(ADDL_LIGHT_TIME);
 
     while (1) {
         switch (state) {
