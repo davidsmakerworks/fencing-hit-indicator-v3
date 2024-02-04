@@ -154,8 +154,8 @@
 #define RED_DISPLAY 0
 #define GREEN_DISPLAY 1
 
-// Standard period for hit indication tone (about 2000 Hz)
-#define BUZZER_PERIOD 16
+// Standard period for hit indication tone (about 1800 Hz)
+#define BUZZER_PERIOD 18
 
 // The time stamps (in ms) at which the fencer's hit was first detected
 // This condition must persist for MIN_HIT_TIME ms to be considered a valid hit
@@ -313,7 +313,7 @@ void init_pps() {
     RC1PPS = 0x15; // SSP1DAT output
     RC0PPS = 0x14; // SSP1CLK output
     
-    RC7PPS = 0x09; // CCP1 output
+    RB0PPS = 0x09; // CCP1 output
     
     // Lock PPS
     PPSLOCKbits.PPSLOCKED = 1;
@@ -340,13 +340,12 @@ void init_ports(void) {
     ANSELC = 0x00;
 
     // Set port directions
-    TRISA = _TRISA_TRISA0_MASK | _TRISA_TRISA1_MASK;
+    TRISA = _TRISA_TRISA0_MASK | _TRISA_TRISA1_MASK | _TRISA_TRISA2_MASK | _TRISA_TRISA3_MASK;
     TRISB = 0x00;
-    TRISC = _TRISC_TRISC2_MASK | _TRISC_TRISC3_MASK;
+    TRISC = 0x00;
 
     // Enable weak pull-ups on inputs
-    WPUA = _WPUA_WPUA0_MASK | _WPUA_WPUA1_MASK;
-    WPUC = _WPUC_WPUC2_MASK | _WPUC_WPUC3_MASK;
+    WPUA = _WPUA_WPUA0_MASK | _WPUA_WPUA1_MASK | _WPUA_WPUA2_MASK | _WPUA_WPUA3_MASK;
 }
 
 void init_system(void) {
@@ -422,20 +421,13 @@ void play_tones(uint8_t *tones) {
 }
 
 void update_display(uint8_t color, uint8_t score, bool hit) {
+    RED_SCORE_LATCH = 0;
+    GREEN_SCORE_LATCH = 0;
+    
     // Avoid going beyond end of digits array
     if (score > 9) {
         score = 9;
     }
-    
-    if (color == RED_DISPLAY) {
-        RED_SCORE_LATCH = 1;
-        GREEN_SCORE_LATCH = 0;
-    } else {
-        RED_SCORE_LATCH = 0;
-        GREEN_SCORE_LATCH = 1;
-    }
-    
-    write_spi(digits[score]);
     
     if (hit) {
         write_spi(HIT_INDICATOR_ON);
@@ -443,8 +435,17 @@ void update_display(uint8_t color, uint8_t score, bool hit) {
         write_spi(HIT_INDICATOR_OFF);
     }
     
-    RED_SCORE_LATCH = 0;
-    GREEN_SCORE_LATCH = 0;
+    write_spi(digits[score]);
+    
+    if (color == RED_DISPLAY) {
+        RED_SCORE_LATCH = 1;
+        delay_ms(1);
+        RED_SCORE_LATCH = 0;
+    } else {
+        GREEN_SCORE_LATCH = 1;
+        delay_ms(1);
+        GREEN_SCORE_LATCH = 0;
+    }
 }
 
 void signal_increment(void) {
