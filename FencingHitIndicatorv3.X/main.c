@@ -115,6 +115,12 @@
 #define MIN_HIT_TIME 14 
 #define LOCKOUT_TIME 300
 
+// As a training aid, the hit indicator segments light up differently to indicate
+// the relative timing of the hits. This has no impact on the actual acoring of the
+// touch which is determined only by rules of priority.
+#define DOUBLE_TIME 30
+#define NEAR_MISS_TIME 270
+
 // Amount of time in msec that buzzer should sound when hit is registered
 #define BUZZER_TIME 1500
 
@@ -147,7 +153,9 @@
 #define SCORE_RESET_SIGNAL_TIME 100
 
 // Bit pattern to illuminate hit indicator segments on score display
-#define HIT_INDICATOR_ON 0b00111111
+#define HIT_INDICATOR_ALL_ON 0b00111111
+#define HIT_INDICATOR_2_ON 0b00011011
+#define HIT_INDICATOR_1_ON 0b00100100
 #define HIT_INDICATOR_OFF 0b00000000
 
 // Macros for which display is active
@@ -198,6 +206,15 @@ uint8_t state;
 bool red_pending;
 bool green_pending;
 
+// Indicates which fencer hit first
+bool red_first;
+bool green_first;
+
+// These are flags to indicate that a second it was registered during the 
+// lockout window. TODO: Refactor to make this less confusing.
+bool red_second;
+bool green_second;
+
 // Indicates that a hit has been registered by one fencer, and now the other fencer
 // has LOCKOUT_TIME ms to also register a hit
 bool lockout_pending;
@@ -212,7 +229,7 @@ uint16_t score_cooldown_timestamp;
 // Flag to indicate of score cooldown is active
 bool score_cooldown_active;
 
-// 7-segment digit bits in reverse order (i.e., .GFEDCBA) for MAX6977 LED driver
+// 7-segment digit bits in reverse order (i.e., .GFEDCBA) for STP16CPC26 LED driver
 const uint8_t digits[10] = {
     0b00111111,
     0b00000110,
@@ -227,24 +244,26 @@ const uint8_t digits[10] = {
 };
 
 const uint8_t startup_tones[14] = {
-    64,100,
-    56,100,
     48,100,
-    40,100,
+    64,75,
+    56,75,
     32,100,
+    40,100,
     20,100,
     0,0
 };
 
-const uint8_t increment_tones[6] = {
-    32,75,
+const uint8_t increment_tones[8] = {
+    40,50,
+    32,50,
     20,75,
     0,0
 };
 
-const uint8_t reset_tones[6] = {
-    24,75,
-    30,75,
+const uint8_t reset_tones[8] = {
+    32,50,
+    24,50,
+    30,50,
     0,0
 };
 
@@ -420,7 +439,7 @@ void play_tones(uint8_t *tones) {
     buzzer_off();
 }
 
-void update_display(uint8_t color, uint8_t score, bool hit) {
+void update_display(uint8_t color, uint8_t score, uint8_t hit_indicator) {
     RED_SCORE_LATCH = 0;
     GREEN_SCORE_LATCH = 0;
     
@@ -429,11 +448,7 @@ void update_display(uint8_t color, uint8_t score, bool hit) {
         score = 9;
     }
     
-    if (hit) {
-        write_spi(HIT_INDICATOR_ON);
-    } else {
-        write_spi(HIT_INDICATOR_OFF);
-    }
+    write_spi(hit_indicator);
     
     write_spi(digits[score]);
     
@@ -481,8 +496,8 @@ void main(void) {
     last_reset_timestamp = 0;
     consecutive_activations = 0;
     
-    update_display(RED_DISPLAY, red_score, false);
-    update_display(GREEN_DISPLAY, green_score, false);
+    update_display(RED_DISPLAY, red_score, HIT_INDICATOR_OFF);
+    update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_OFF);
     
     play_tones(startup_tones);
     delay_ms(ADDL_LIGHT_TIME);
@@ -494,8 +509,8 @@ void main(void) {
                 last_reset_timestamp = get_ticks();
                 
                 // Turn off hit LEDs
-                update_display(RED_DISPLAY, red_score, false);
-                update_display(GREEN_DISPLAY, green_score, false);
+                update_display(RED_DISPLAY, red_score, HIT_INDICATOR_OFF);
+                update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_OFF);
 
                 // Turn off buzzer
                 buzzer_off();
@@ -512,6 +527,13 @@ void main(void) {
 
                 red_pending = false;
                 green_pending = false;
+                
+                red_first = false;
+                green_first = false;
+                
+                red_second = false;
+                green_second = false;
+                
                 lockout_pending = false;
                 
                 red_inc_pending = false;
@@ -553,8 +575,8 @@ void main(void) {
                                 red_score++;
                             }                            
                             
-                            update_display(RED_DISPLAY, red_score, false);
-                            update_display(GREEN_DISPLAY, green_score, false);
+                            update_display(RED_DISPLAY, red_score, HIT_INDICATOR_OFF);
+                            update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_OFF);
                             
                             signal_increment();
                             
@@ -588,8 +610,8 @@ void main(void) {
                                 green_score++;
                             }                            
                             
-                            update_display(RED_DISPLAY, red_score, false);
-                            update_display(GREEN_DISPLAY, green_score, false);
+                            update_display(RED_DISPLAY, red_score, HIT_INDICATOR_OFF);
+                            update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_OFF);
                             
                             signal_increment();
                             
@@ -616,8 +638,8 @@ void main(void) {
                     red_score = 0;
                     green_score = 0;
                     
-                    update_display(RED_DISPLAY, red_score, false);
-                    update_display(GREEN_DISPLAY, green_score, false);
+                    update_display(RED_DISPLAY, red_score, HIT_INDICATOR_OFF);
+                    update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_OFF);
                 }
                 
                 // If red side tip is depressed and if it has been depressed for MIN_HIT_TIME ms
@@ -629,10 +651,22 @@ void main(void) {
                             if (!lockout_pending) {
                                 lockout_start_timestamp = red_start_timestamp;
                                 lockout_pending = true;
+                                
+                                red_first = true;
+                                
+                                //Illuminate all segments for first hit
+                                update_display(RED_DISPLAY, red_score, HIT_INDICATOR_ALL_ON);
+                            } else if (!red_first && !red_second) {    
+                                if ((get_ticks() - lockout_start_timestamp) > NEAR_MISS_TIME) {
+                                    update_display(RED_DISPLAY, red_score, HIT_INDICATOR_1_ON);
+                                } else if ((get_ticks() - lockout_start_timestamp) > DOUBLE_TIME) {
+                                    update_display(RED_DISPLAY, red_score, HIT_INDICATOR_2_ON);
+                                } else {
+                                    update_display(RED_DISPLAY, red_score, HIT_INDICATOR_ALL_ON);
+                                }
+                                
+                                red_second = true;
                             }
-
-                            // Light up red hit indicator segments
-                            update_display(RED_DISPLAY, red_score, true); 
 
                             // Sound buzzer if armed
                             if (buzzer_armed) {
@@ -660,10 +694,22 @@ void main(void) {
                             if (!lockout_pending) {
                                 lockout_start_timestamp = green_start_timestamp;
                                 lockout_pending = true;
+                                
+                                green_first = true;
+                                
+                                //Illuminate all segments for first hit
+                                update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_ALL_ON);
+                            } else if (!green_first && !green_second) {
+                                if((get_ticks() - lockout_start_timestamp) > NEAR_MISS_TIME) {
+                                    update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_1_ON);
+                                } else if ((get_ticks() - lockout_start_timestamp) > DOUBLE_TIME) {
+                                    update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_2_ON);
+                                } else {
+                                    update_display(GREEN_DISPLAY, green_score, HIT_INDICATOR_ALL_ON);
+                                }
+                                
+                                green_second = true;
                             }
-
-                            // Light up green hit indicator segments
-                            update_display(GREEN_DISPLAY, green_score, true);
 
                             // Sound buzzer if armed
                             if (buzzer_armed) {
