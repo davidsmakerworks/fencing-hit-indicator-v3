@@ -163,7 +163,7 @@
 #define GREEN_DISPLAY 1
 
 // Standard period for hit indication tone (about 1800 Hz)
-#define BUZZER_PERIOD 18
+#define BUZZER_PERIOD 36
 
 // The time stamps (in ms) at which the fencer's hit was first detected
 // This condition must persist for MIN_HIT_TIME ms to be considered a valid hit
@@ -244,26 +244,26 @@ const uint8_t digits[10] = {
 };
 
 const uint8_t startup_tones[14] = {
+    64,100,
+    80,75,
+    72,75,
     48,100,
-    64,75,
-    56,75,
-    32,100,
     40,100,
-    20,100,
+    36,100,
     0,0
 };
 
 const uint8_t increment_tones[8] = {
+    44,50,
     40,50,
-    32,50,
-    20,75,
+    36,75,
     0,0
 };
 
 const uint8_t reset_tones[8] = {
-    32,50,
-    24,50,
-    30,50,
+    48,50,
+    38,50,
+    52,50,
     0,0
 };
 
@@ -306,7 +306,7 @@ void init_timers(void) {
     
     // Timer4 is used as the period source for CCP1 PWM generator
     T4CLKCONbits.T4CS = 0b0001; // Clock source Fosc/4 as required by CCP module
-    T4CONbits.T4CKPS = 0b101; // 1:32 prescaler = 31.25 kHz clock with Fosc = 4 MHz
+    T4CONbits.T4CKPS = 0b100; // 1:16 prescaler = 62.5 kHz clock with Fosc = 4 MHz
     T4CONbits.T4OUTPS = 0b0000; // 1:1 postscaler (postscaler not used by CCP)
     
     T4PR = 127; // Default to lowest frequency (assuming 50% duty cycle)
